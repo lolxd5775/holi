@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Para Ti ✨</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+    body {
+      width: 100vw; height: 100vh;
+      background: radial-gradient(circle at bottom, #0a0a2a, #000010);
+      overflow: hidden; display: flex; align-items: center; justify-content: center; color: white;
+    }
+    #inicio { position: absolute; z-index: 10; }
+    button {
+      padding: 18px 40px; font-size: 1.4rem; border-radius: 40px; border: none;
+      background: linear-gradient(135deg, #b44cff, #ff6ec7); color: white; cursor: pointer;
+      box-shadow: 0 0 20px #b44cff, 0 0 40px #ff6ec7; transition: transform 0.3s, box-shadow 0.3s;
+    }
+    button:hover { transform: scale(1.08); box-shadow: 0 0 30px #b44cff, 0 0 60px #ff6ec7; }
+    #escena { display: none; width: 100%; height: 100%; position: relative; }
+    canvas { width: 100%; height: 100%; }
+    #carta {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 420px; padding: 30px; background: rgba(20, 10, 40, 0.9);
+      border-radius: 20px; box-shadow: 0 0 30px #b44cff; display: none; text-align: center;
+    }
+    #carta h2 { color: #ffb3ff; margin-bottom: 15px; }
+    #carta p { line-height: 1.6; color: #eee; }
+  </style>
+</head>
+<body>
+
+  <div id="inicio">
+    <button id="btnInicio">Para ti ✨</button>
+  </div>
+
+  <div id="escena">
+    <canvas id="lienzo"></canvas>
+    
+    <!-- Música de fondo (coloca musica.mp3 en la MISMA carpeta que este HTML) -->
+    <audio id="musica" loop>
+      <source src="musica.mp3" type="audio/mpeg">
+      <!-- Opcional respaldo -->
+      <source src="musica.ogg" type="audio/ogg">
+    </audio>
+    <div id="carta">
+      <button id="cerrarCarta" style="position:absolute;top:10px;right:14px;background:none;border:none;color:#ffb3ff;font-size:0.9rem;cursor:pointer;">✕</button>
+      <h2>Para ti</h2>
+      <p>
+        Estoy muy agradecido de haberte conocido.<br><br>
+        Te quiero mucho y prometo cuidarte siempre,<br>
+        porque eres alguien muy especial para mí.<br><br>
+        Te ayudaré sin importar nada,
+        intentaré estar allí para lo bueno y lo malo.<br><br>
+        <strong>TE QUIERO</strong>, no lo dudes 💜
+      </p>
+    </div>
+  </div>
+
+  <script defer>
+    document.addEventListener('DOMContentLoaded', () => {
+      const inicio = document.getElementById('inicio');
+      const escena = document.getElementById('escena');
+      const canvas = document.getElementById('lienzo');
+      const ctx = canvas.getContext('2d');
+      const carta = document.getElementById('carta');
+      const btnInicio = document.getElementById('btnInicio');
+      const btnCerrar = document.getElementById('cerrarCarta');
+
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      let tiempo = 0;
+      let progresoGlobal = 0;
+
+      const tulipanes = [
+        // TODOS nacen del MISMO punto
+        // largo controla SOLO el tallo (positivo = más largo)
+        {rot: -0.1,  tam: 1.0, largo: 0,   fase: 0, delay: 0.0},
+        {rot: 0.2,  tam: 1.0, largo: 0,   fase: 1, delay: 0.12},
+        {rot: -0.2,  tam: 0.98,largo: 0,   fase: 2, delay: 0.24},
+        {rot: -0,  tam: 1.03,largo: 0,   fase: 3, delay: 0.36},
+        {rot: 0.0,   tam: 1.05,largo: 0,   fase: 4, delay: 0.48},
+        
+        // ÚLTIMOS TRES → tallo MÁS LARGO pero misma altura visual final
+        {rot: -0.1,  tam: 1.15,largo: 40,  fase: 5, delay: 0.6},
+        {rot: 0.3,   tam: 1.18,largo: 40,  fase: 6, delay: 0.72},
+        {rot: 0.45,  tam: 1.2, largo: 40,  fase: 7, delay: 0.84},
+        {rot: 0.0,   tam: 1.0, largo: 60,   fase: 8, delay: 0.96}
+      ];
+
+      const estrellas = [];
+      const fugaces = [];
+
+      btnInicio.addEventListener('click', iniciar);
+
+      function iniciar() {
+        const musica = document.getElementById('musica');
+        musica.volume = 0.4;
+        musica.play();
+        inicio.style.display = 'none';
+        escena.style.display = 'block';
+        crearEstrellas();
+        requestAnimationFrame(animar);
+      }
+
+      function crearEstrellas() {
+        estrellas.length = 0;
+        for (let i = 0; i < 140; i++) {
+          estrellas.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            r: Math.random() * 1.5
+          });
+        }
+      }
+
+      function estrellaFugaz() {
+        fugaces.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height * 0.4,
+          vx: 12,
+          vy: 5,
+          vida: 50
+        });
+      }
+
+      function dibujarTulipan(x, baseY, p, t) {
+        // Ajuste para que los tulipanes más largos NO queden más abajo
+        // compensamos el largo extra subiendo su punto de inicio
+        const compensacionY = (t.largo || 0);
+        // Altura base uniforme para todos (mismo largo visual)
+        // Largo general de los tulipanes (ajustado)
+        const alturaBase = 270;
+        // Altura visual IGUAL para todos los tulipanes
+        // Largo del tallo: base + ajuste individual
+        const altura = (alturaBase + (t.largo || 0)) * p;
+
+        ctx.save();
+        ctx.translate(x, baseY - compensacionY * p);
+        // Movimiento alternado: unos izquierda→derecha y otros derecha→izquierda
+        const direccion = (t.fase % 2 === 0) ? 1 : -1;
+        ctx.rotate(t.rot + Math.sin(tiempo * 0.7 + t.fase) * 0.15 * direccion);
+
+        // Tallo
+        ctx.strokeStyle = '#39ffb6';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(0, -altura * 0.6, 0, -altura);
+        ctx.stroke();
+
+        // Hojas
+        ctx.fillStyle = '#2cff9a';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#2cff9a';
+
+        // hoja izquierda
+        ctx.beginPath();
+        ctx.ellipse(-10, -altura * 0.45, 10, 30 * t.tam, -0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // hoja derecha
+        ctx.beginPath();
+        ctx.ellipse(10, -altura * 0.4, 9, 28 * t.tam, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+
+        // Cabeza del tulipán – pétalos MÁS definidos y visibles
+        ctx.shadowBlur = 35;
+        ctx.shadowColor = '#e9a6ff';
+        ctx.fillStyle = '#c77dff';
+
+        // Tamaño de la flor (ancho/volumen independiente del largo)
+        const w = 18 * t.tam;
+        const h = 36 * t.tam;
+
+        // pétalo central
+        ctx.beginPath();
+        ctx.ellipse(0, -altura, w, h, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // pétalos laterales (más separados y marcados)
+        ctx.fillStyle = '#b44cff';
+        ctx.beginPath();
+        ctx.ellipse(-9, -altura + 3, w * 0.85, h * 0.9, -0.4, 0, Math.PI * 2);
+        ctx.ellipse(9, -altura + 3, w * 0.85, h * 0.9, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // brillo interno para resaltar pétalos
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#ffffff';
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.beginPath();
+        ctx.ellipse(0, -altura - 4, w * 0.6, h * 0.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      }
+
+      // Mostrar carta SOLO al presionar el ramo
+      canvas.addEventListener('click', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        // zona aproximada del ramo
+        const centroX = canvas.width / 2;
+        const topRamo = canvas.height - 520;
+        const bottomRamo = canvas.height - 180;
+
+        if (x > centroX - 120 && x < centroX + 120 && y > topRamo && y < bottomRamo) {
+          carta.style.display = 'block';
+        }
+      });
+
+      btnCerrar.addEventListener('click', () => {
+        carta.style.display = 'none';
+      });
+
+      function animar() {
+        tiempo += 0.02;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Estrellas
+        ctx.fillStyle = 'white';
+        estrellas.forEach(e => {
+          ctx.beginPath();
+          ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        if (Math.random() < 0.012) estrellaFugaz();
+
+        fugaces.forEach((f, i) => {
+          ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+          ctx.beginPath();
+          ctx.moveTo(f.x, f.y);
+          ctx.lineTo(f.x - 35, f.y - 12);
+          ctx.stroke();
+          f.x += f.vx;
+          f.y += f.vy;
+          f.vida--;
+          if (f.vida <= 0) fugaces.splice(i, 1);
+        });
+
+        // crecimiento global tipo video
+        if (progresoGlobal < 1) progresoGlobal += 0.002;
+
+        // Posición base del ramo (un poco más arriba, pero conservando el largo)
+        // Subimos el ramo para que no quede tan abajo
+        const baseY = canvas.height - 260;
+        tulipanes.forEach(t => {
+          if (progresoGlobal > t.delay) {
+            const p = Math.min(1, (progresoGlobal - t.delay) * 1.1);
+            dibujarTulipan(canvas.width / 2, baseY, p, t);
+          }
+        });
+
+        // Lazo rojo
+        const lazoY = baseY + 42;
+        ctx.fillStyle = '#ff2e2e';
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = '#ff2e2e';
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2 - 18, lazoY, 20, 0, Math.PI * 2);
+        ctx.arc(canvas.width / 2 + 18, lazoY, 20, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        requestAnimationFrame(animar);
+      }
+    });
+  </script>
+</body>
+</html>
